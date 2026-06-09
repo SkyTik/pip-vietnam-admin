@@ -5,5 +5,5 @@
  * No trailing slash.
  */
 window.PIP_CONFIG = {
-  API_BASE_URL: "http://localhost:8090"
+  API_BASE_URL: "http://103.10.68.167:8090"
 };
