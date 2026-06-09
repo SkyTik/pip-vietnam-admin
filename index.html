@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vietnam Admin Unit Lookup</title>
+
+  <!-- Tailwind CSS (CDN, no build) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Leaflet 1.9.x CSS + JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+          crossorigin=""></script>
+
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+
+    /* Desktop: side panel on the right */
+    #panel {
+      transition: transform 200ms ease-in-out;
+    }
+
+    /* Mobile bottom sheet: max 50vh */
+    @media (max-width: 767px) {
+      #panel {
+        max-height: 50vh;
+        overflow-y: auto;
+      }
+    }
+  </style>
+</head>
+<body class="flex flex-col md:flex-row h-screen bg-slate-100">
+
+  <!-- Map container -->
+  <div id="map" class="flex-1 min-h-[50vh] md:min-h-0 z-0"></div>
+
+  <!-- Side panel (desktop right, mobile bottom) -->
+  <div id="panel"
+       class="w-full md:w-96 bg-white border-t md:border-t-0 md:border-l border-slate-200
+              shadow-lg flex flex-col overflow-hidden z-10">
+
+    <!-- Header -->
+    <div class="px-4 py-3 border-b border-slate-200 flex items-center gap-2 bg-slate-50">
+      <!-- Map pin SVG icon -->
+      <svg class="w-5 h-5 text-indigo-600 shrink-0" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 1 1 18 0z"/>
+        <circle cx="12" cy="10" r="3"/>
+      </svg>
+      <h1 class="text-base font-semibold text-slate-900 leading-tight">Vietnam Admin Unit Lookup</h1>
+    </div>
+
+    <!-- Status area (loading / error / out-of-bounds) -->
+    <div id="status-area" class="px-4 py-3 hidden">
+      <div id="status-loading" class="hidden flex items-center gap-2 text-slate-600 text-sm">
+        <!-- Spinner SVG -->
+        <svg class="w-4 h-4 animate-spin text-indigo-500" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" class="opacity-25"/>
+          <path d="M4 12a8 8 0 018-8" stroke="currentColor" stroke-width="3" stroke-linecap="round" class="opacity-75"/>
+        </svg>
+        <span>Looking up location...</span>
+      </div>
+      <div id="status-error" class="hidden flex items-start gap-2 text-red-700 text-sm bg-red-50 rounded-md p-3">
+        <!-- Alert triangle SVG -->
+        <svg class="w-4 h-4 shrink-0 mt-0.5 text-red-500" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        <span id="status-error-msg"></span>
+      </div>
+      <div id="status-oob" class="hidden flex items-start gap-2 text-amber-700 text-sm bg-amber-50 rounded-md p-3">
+        <!-- Globe SVG -->
+        <svg class="w-4 h-4 shrink-0 mt-0.5 text-amber-500" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="2" y1="12" x2="22" y2="12"/>
+          <path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10A15.3 15.3 0 0112 2z"/>
+        </svg>
+        <span>This point is outside Vietnam's administrative boundaries.</span>
+      </div>
+    </div>
+
+    <!-- Prompt (shown before any lookup) -->
+    <div id="prompt-area" class="flex-1 flex flex-col items-center justify-center text-center px-6 py-10 text-slate-400">
+      <!-- Click/tap SVG -->
+      <svg class="w-10 h-10 mb-3 text-slate-300" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M15 15l-2 5L9 9l11 4-5 2z"/>
+        <path d="M22 22l-5-5"/>
+      </svg>
+      <p class="text-sm">Click anywhere on the map to look up administrative units</p>
+    </div>
+
+    <!-- Tabs + content (hidden until result) -->
+    <div id="result-area" class="hidden flex-1 flex flex-col overflow-hidden">
+
+      <!-- Tab bar -->
+      <div class="flex border-b border-slate-200 bg-slate-50 px-2" role="tablist">
+        <button data-tab="new" role="tab" aria-selected="true"
+                class="tab-btn px-3 py-2 text-sm font-medium cursor-pointer
+                       border-b-2 border-indigo-500 text-indigo-600
+                       transition-colors duration-200 hover:text-indigo-700">
+          New (2026)
+        </button>
+        <button data-tab="old" role="tab" aria-selected="false"
+                class="tab-btn px-3 py-2 text-sm font-medium cursor-pointer
+                       border-b-2 border-transparent text-slate-500
+                       transition-colors duration-200 hover:text-slate-700">
+          Old
+        </button>
+        <button data-tab="stats" role="tab" aria-selected="false"
+                class="tab-btn px-3 py-2 text-sm font-medium cursor-pointer
+                       border-b-2 border-transparent text-slate-500
+                       transition-colors duration-200 hover:text-slate-700">
+          Stats
+        </button>
+      </div>
+
+      <!-- Tab panels (scrollable) -->
+      <div class="flex-1 overflow-y-auto">
+
+        <!-- New (2026) tab -->
+        <div id="tab-new" class="tab-panel p-4" role="tabpanel">
+          <h2 class="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
+            2026 Administrative Path (2-tier)
+          </h2>
+          <div id="content-new" class="space-y-2"></div>
+        </div>
+
+        <!-- Old tab -->
+        <div id="tab-old" class="tab-panel p-4 hidden" role="tabpanel">
+          <h2 class="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
+            Pre-2025 Administrative Path
+          </h2>
+          <div id="content-old" class="space-y-2"></div>
+        </div>
+
+        <!-- Stats tab -->
+        <div id="tab-stats" class="tab-panel p-4 hidden" role="tabpanel">
+          <h2 class="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
+            Unit Statistics
+          </h2>
+          <div id="content-stats" class="space-y-2"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Config must load before app -->
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
