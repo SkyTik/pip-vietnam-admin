@@ -249,7 +249,7 @@
     contentStats.innerHTML = statsHTML;
 
     setResult();
-    switchTab("new");
+    switchTab("admin");
   }
 
   // ── Fetch with client-side timeout ────────────────────────────────

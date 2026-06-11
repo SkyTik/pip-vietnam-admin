@@ -109,17 +109,11 @@
 
       <!-- Tab bar -->
       <div class="flex border-b border-slate-200 bg-slate-50 px-2" role="tablist">
-        <button data-tab="new" role="tab" aria-selected="true"
+        <button data-tab="admin" role="tab" aria-selected="true"
                 class="tab-btn px-3 py-2 text-sm font-medium cursor-pointer
                        border-b-2 border-indigo-500 text-indigo-600
                        transition-colors duration-200 hover:text-indigo-700">
-          New (2026)
-        </button>
-        <button data-tab="old" role="tab" aria-selected="false"
-                class="tab-btn px-3 py-2 text-sm font-medium cursor-pointer
-                       border-b-2 border-transparent text-slate-500
-                       transition-colors duration-200 hover:text-slate-700">
-          Old
+          Admin
         </button>
         <button data-tab="stats" role="tab" aria-selected="false"
                 class="tab-btn px-3 py-2 text-sm font-medium cursor-pointer
@@ -132,19 +126,11 @@
       <!-- Tab panels (scrollable) -->
       <div class="flex-1 overflow-y-auto">
 
-        <!-- New (2026) tab -->
-        <div id="tab-new" class="tab-panel p-4" role="tabpanel">
-          <h2 class="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
-            2026 Administrative Path (2-tier)
-          </h2>
+        <!-- Admin tab: both admin paths stacked in one scrollable panel -->
+        <div id="tab-admin" class="tab-panel p-4" role="tabpanel">
+          <h2 class="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">2026 Administrative Path (2-tier)</h2>
           <div id="content-new" class="space-y-2"></div>
-        </div>
-
-        <!-- Old tab -->
-        <div id="tab-old" class="tab-panel p-4 hidden" role="tabpanel">
-          <h2 class="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
-            Pre-2025 Administrative Path
-          </h2>
+          <h2 class="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3 mt-6">Pre-2025 Administrative Path</h2>
           <div id="content-old" class="space-y-2"></div>
         </div>
 
@@ -161,6 +147,6 @@
 
   <!-- Config must load before app (bump v= whenever config.js changes) -->
   <script src="config.js?v=20260611"></script>
-  <script src="app.js?v=20260611"></script>
+  <script src="app.js?v=20260611a"></script>
 </body>
 </html>
