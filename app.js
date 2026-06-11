@@ -40,6 +40,8 @@
   var statusError = document.getElementById("status-error");
   var statusErrorMsg = document.getElementById("status-error-msg");
   var statusOob = document.getElementById("status-oob");
+  var statusRatelimited = document.getElementById("status-ratelimited");
+  var statusRatelimitedMsg = document.getElementById("status-ratelimited-msg");
   var promptArea = document.getElementById("prompt-area");
   var resultArea = document.getElementById("result-area");
   var contentNew = document.getElementById("content-new");
@@ -75,6 +77,9 @@
   var pendingClick = null;
   // warmUp() sets this once; pingHealth() checks against it.
   var warmDeadline = 0;
+  // Rate-limit cooldown: epoch ms when the cooldown expires, 0 = not limited.
+  var rateLimitedUntil = 0;
+  var rateLimitTimer = null;
 
   // ── Tab switching ────────────────────────────────────────────────
   var tabButtons = document.querySelectorAll(".tab-btn");
@@ -114,6 +119,7 @@
     statusLoading.classList.add("hidden");
     statusWarming.classList.add("hidden");
     statusError.classList.add("hidden");
+    statusRatelimited.classList.add("hidden");
     statusOob.classList.add("hidden");
   }
 
@@ -143,6 +149,29 @@
   function setOutOfBounds() {
     showStatus(statusOob);
     clearGeometry();
+  }
+
+  // Show an amber cooldown banner after a 429 and count down each second.
+  // Once the countdown reaches zero, auto-restore the ready/prompt state
+  // so the next click fires a fresh request.
+  function setRateLimited(seconds) {
+    if (rateLimitTimer) { clearInterval(rateLimitTimer); rateLimitTimer = null; }
+    var remaining = seconds;
+    rateLimitedUntil = Date.now() + seconds * 1000;
+    showStatus(statusRatelimited);
+    statusRatelimitedMsg.textContent = "Too many requests — wait " + remaining + "s";
+    rateLimitTimer = setInterval(function () {
+      remaining -= 1;
+      if (remaining > 0) {
+        statusRatelimitedMsg.textContent = "Too many requests — wait " + remaining + "s";
+        return;
+      }
+      clearInterval(rateLimitTimer);
+      rateLimitTimer = null;
+      rateLimitedUntil = 0;
+      hideAllStatus();
+      promptArea.classList.remove("hidden");
+    }, 1000);
   }
 
   function setResult() {
@@ -311,12 +340,21 @@
       body: JSON.stringify({ lon: lon, lat: lat })
     }, 15000)
       .then(function (res) {
+        // 429 gets its own amber cooldown banner instead of the generic error.
+        if (res.status === 429) {
+          var ra = parseInt(res.headers.get("Retry-After"), 10);
+          if (!(ra > 0)) ra = 2;
+          setRateLimited(ra);
+          return null;
+        }
         if (!res.ok) {
           throw new Error("Lookup failed (HTTP " + res.status + ")");
         }
         return res.json();
       })
       .then(function (result) {
+        // null signals the 429 path already handled the response.
+        if (!result) return;
         // Out-of-bounds or empty new array
         if (result.out_of_bounds === true || !result.new || result.new.length === 0) {
           setOutOfBounds();
@@ -398,6 +436,13 @@
       // Queue the click intent; it replays when pingHealth succeeds.
       pendingClick = { lon: lng, lat: lat };
       setWarming();
+      return;
+    }
+
+    // Still in rate-limit cooldown — re-show the banner with remaining
+    // time and suppress the request to avoid another 429.
+    if (Date.now() < rateLimitedUntil) {
+      setRateLimited(Math.ceil((rateLimitedUntil - Date.now()) / 1000));
       return;
     }
 

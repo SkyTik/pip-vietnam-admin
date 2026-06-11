@@ -81,6 +81,14 @@
         </svg>
         <span id="status-error-msg"></span>
       </div>
+      <div id="status-ratelimited" class="hidden flex items-center gap-2 text-amber-700 text-sm bg-amber-50 rounded-md p-3">
+        <!-- Clock SVG (rate-limit cooldown indicator) -->
+        <svg class="w-4 h-4 shrink-0 text-amber-500" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
+        </svg>
+        <span id="status-ratelimited-msg"></span>
+      </div>
       <div id="status-oob" class="hidden flex items-start gap-2 text-amber-700 text-sm bg-amber-50 rounded-md p-3">
         <!-- Globe SVG -->
         <svg class="w-4 h-4 shrink-0 mt-0.5 text-amber-500" viewBox="0 0 24 24" fill="none"
@@ -147,6 +155,6 @@
 
   <!-- Config must load before app (bump v= whenever config.js changes) -->
   <script src="config.js?v=20260611"></script>
-  <script src="app.js?v=20260611a"></script>
+  <script src="app.js?v=20260611b"></script>
 </body>
 </html>
