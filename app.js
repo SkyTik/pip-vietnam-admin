@@ -36,6 +36,7 @@
   // ── DOM references ───────────────────────────────────────────────
   var statusArea = document.getElementById("status-area");
   var statusLoading = document.getElementById("status-loading");
+  var statusWarming = document.getElementById("status-warming");
   var statusError = document.getElementById("status-error");
   var statusErrorMsg = document.getElementById("status-error-msg");
   var statusOob = document.getElementById("status-oob");
@@ -66,6 +67,14 @@
   // ── Mutable state ────────────────────────────────────────────────
   var marker = null;
   var geometryLayer = null;
+  // Cloud Run scale-to-zero: the backend may be cold on first load.
+  // backendReady gates lookups until the health endpoint responds.
+  var backendReady = false;
+  // If the user clicks the map before the backend is warm, we queue
+  // the intent and replay it automatically once healthy.
+  var pendingClick = null;
+  // warmUp() sets this once; pingHealth() checks against it.
+  var warmDeadline = 0;
 
   // ── Tab switching ────────────────────────────────────────────────
   var tabButtons = document.querySelectorAll(".tab-btn");
@@ -103,6 +112,7 @@
   function hideAllStatus() {
     statusArea.classList.add("hidden");
     statusLoading.classList.add("hidden");
+    statusWarming.classList.add("hidden");
     statusError.classList.add("hidden");
     statusOob.classList.add("hidden");
   }
@@ -119,6 +129,10 @@
 
   function setLoading() {
     showStatus(statusLoading);
+  }
+
+  function setWarming() {
+    showStatus(statusWarming);
   }
 
   function setError(msg) {
@@ -238,10 +252,24 @@
     switchTab("new");
   }
 
+  // ── Fetch with client-side timeout ────────────────────────────────
+  // Cloud Run's proxy queues requests while a cold container boots
+  // (~42s). We use a SHORT client timeout and abort-then-retry so
+  // the user sees the warming UI instead of a hung spinner.
+  function fetchWithTimeout(url, opts, ms) {
+    var controller = new AbortController();
+    var id = setTimeout(function () { controller.abort(); }, ms);
+    // Clone so we never mutate the caller's opts object (a reused object would
+    // otherwise have its signal silently overwritten by a later call).
+    var merged = Object.assign({}, opts);
+    merged.signal = controller.signal;
+    return fetch(url, merged).finally(function () { clearTimeout(id); });
+  }
+
   // ── Highlight geometry ───────────────────────────────────────────
   function highlight(code) {
     clearGeometry();
-    fetch(API_BASE_URL + "/geometry/" + encodeURIComponent(code))
+    fetchWithTimeout(API_BASE_URL + "/geometry/" + encodeURIComponent(code), {}, 15000)
       .then(function (res) {
         if (!res.ok) {
           throw new Error("Geometry request failed (HTTP " + res.status + ")");
@@ -277,11 +305,11 @@
     // under a loading/error/out-of-bounds state for the new click.
     clearGeometry();
 
-    fetch(API_BASE_URL + "/lookup", {
+    fetchWithTimeout(API_BASE_URL + "/lookup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ lon: lon, lat: lat })
-    })
+    }, 15000)
       .then(function (res) {
         if (!res.ok) {
           throw new Error("Lookup failed (HTTP " + res.status + ")");
@@ -309,14 +337,75 @@
       });
   }
 
-  // ── Map click handler ────────────────────────────────────────────
+  // ── Backend wake-up (cold-start handling) ─────────────────────────
+  // Cloud Run scale-to-zero means the first request after idle hangs
+  // for ~42s while the container boots. We ping /health with a short
+  // client timeout and abort-then-retry: each ping is a fresh fetch
+  // that will either succeed quickly (container warm) or abort after
+  // 10s (container still booting). Only ONE ping is in-flight at a
+  // time — no parallel spam against the proxy.
+  function pingHealth() {
+    fetchWithTimeout(API_BASE_URL + "/health", {}, 10000)
+      .then(function (res) {
+        if (res.ok) {
+          backendReady = true;
+          if (pendingClick) {
+            // Replay the queued map click now that the backend is warm.
+            var click = pendingClick;
+            pendingClick = null;
+            lookup(click.lon, click.lat);
+          } else {
+            // No queued click — return to the prompt state.
+            hideAllStatus();
+            promptArea.classList.remove("hidden");
+          }
+          return;
+        }
+        // Non-OK (e.g. 503 from proxy during deploy) — retry like a timeout.
+        retryOrFail();
+      })
+      .catch(function () {
+        // AbortError (client timeout) or network error — retry.
+        retryOrFail();
+      });
+  }
+
+  function retryOrFail() {
+    if (Date.now() < warmDeadline) {
+      // Re-ping after 2s. Single in-flight — never parallel.
+      setTimeout(pingHealth, 2000);
+    } else {
+      setError("Backend unreachable — reload the page to retry.");
+    }
+  }
+
+  function warmUp() {
+    var start = Date.now();
+    // 120s deadline covers fresh 493MB image pull + ~42s cold build.
+    warmDeadline = start + 120000;
+    setWarming();
+    pingHealth();
+  }
+
+  // ── Map click handler (gated on backend readiness) ──────────────
   map.on("click", function (e) {
     var lat = e.latlng.lat;
     var lng = e.latlng.lng;
 
     placeMarker(lat, lng);
+
+    if (!backendReady) {
+      // Queue the click intent; it replays when pingHealth succeeds.
+      pendingClick = { lon: lng, lat: lat };
+      setWarming();
+      return;
+    }
+
     lookup(lng, lat); // API wants {lon: lng, lat: lat}
   });
+
+  // Start warming the backend immediately after map setup.
+  warmUp();
 
   // ── Utility ──────────────────────────────────────────────────────
   function escapeHTML(str) {

@@ -64,6 +64,14 @@
         </svg>
         <span>Looking up location...</span>
       </div>
+      <div id="status-warming" class="hidden flex items-center gap-2 text-slate-600 text-sm">
+        <!-- Spinner SVG (cold-start warming indicator) -->
+        <svg class="w-4 h-4 animate-spin text-amber-500" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" class="opacity-25"/>
+          <path d="M4 12a8 8 0 018-8" stroke="currentColor" stroke-width="3" stroke-linecap="round" class="opacity-75"/>
+        </svg>
+        <span>Waking up backend (first load can take ~40s)...</span>
+      </div>
       <div id="status-error" class="hidden flex items-start gap-2 text-red-700 text-sm bg-red-50 rounded-md p-3">
         <!-- Alert triangle SVG -->
         <svg class="w-4 h-4 shrink-0 mt-0.5 text-red-500" viewBox="0 0 24 24" fill="none"
@@ -151,8 +159,8 @@
     </div>
   </div>
 
-  <!-- Config must load before app -->
-  <script src="config.js"></script>
-  <script src="app.js"></script>
+  <!-- Config must load before app (bump v= whenever config.js changes) -->
+  <script src="config.js?v=20260611"></script>
+  <script src="app.js?v=20260611"></script>
 </body>
 </html>

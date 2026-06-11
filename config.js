@@ -5,5 +5,6 @@
  * No trailing slash.
  */
 window.PIP_CONFIG = {
-  API_BASE_URL: "http://103.10.68.167:8090"
+  // Set by deploy step to the public Cloud Run URL (https, no trailing slash).
+  API_BASE_URL: "https://pip-service-y3mxaf54sa-as.a.run.app"
 };
